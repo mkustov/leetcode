@@ -1,76 +1,36 @@
-require 'pry'
-# @param {Integer} k
-# @param {Integer[]} arrival
-# @param {Integer[]} load
-# @return {Integer[]}
 def busiest_servers(k, arrival, load)
-  server_load = {}
-  current_load = {}
-  max_tasks = 0
-  k.times do |i| 
-    server_load[i] = 0
-    current_load[i] = 0
-  end
-  
-  servers = Array.new(k) { |s| s }
+  server_load = Array.new(k, 0)
+  available = (0...k).to_a  # Array of available servers
+  busy = []  # Min heap sorted by end time
 
-  arrival.each_with_index do |arrival_time, i|
-    p "*********ARRIVAL #{arrival_time}, LOAD #{load[i]}*********"
-    p servers: servers
-    server_to_pick_request = i % k
-    p server_to_pick_request: server_to_pick_request
-
-    available_server = nil
-    # if current_load[server_to_pick_request] > arrival_time
-    #   server_to_pick_request += 1
-    #   if server_to_pick_request == k
-    #     server_to_pick_request = 0
-    #   end
-    #   while server_to_pick_request != i % k 
-    #     if current_load[server_to_pick_request] <= arrival_time
-    #       available_server = server_to_pick_request
-    #       break
-    #     end
-    #     server_to_pick_request += 1
-    #     if server_to_pick_request == k
-    #       server_to_pick_request = 0
-    #     end
-    #   end
-    # else
-    #   available_server = server_to_pick_request
-    # end
-
-    cond = proc { |j| current_load[j] <= arrival_time }
-    available_server = (i % k...k).find(&cond) || (0...i % k).find(&cond)
-    next unless available_server
-
-    if available_server && current_load[available_server] <= arrival_time
-      current_load[available_server] = arrival_time + load[i]
-      server_load[available_server] += 1
+  arrival.each_with_index do |time, i|
+    # Free up servers that have completed their tasks
+    while busy.any? && busy.first[0] <= time
+      _, server = busy.shift
+      # Insert server back into available array maintaining sorted order
+      insert_idx = available.bsearch_index { |x| x >= server } || available.size
+      available.insert(insert_idx, server)
     end
-    max_tasks = server_load[available_server] if server_load[available_server] > max_tasks
 
+    next if available.empty?
 
-    p current_load: current_load
-    p server_load: server_load
+    # Find the next available server
+    target = i % k
+    idx = available.bsearch_index { |x| x >= target }
+    idx ||= 0  # Wrap around to the beginning if no server found
+    server = available.delete_at(idx)
 
-    # p '-----'
-    # p current_load: current_load
-    # current_load.keys.each do |server|
-    #   p server: server
-    #   p current_load_server_before: current_load[server]
-    #   if current_load[server] <= arrival_time
-    #     servers << server unless servers.include?(server)
-    #   end
-    #   p current_load_server_after: current_load[server]
-    # end
+    # Assign the request to the available server
+    server_load[server] += 1
+    
+    # Add to busy servers (maintain sorted order by insertion)
+    end_time = time + load[i]
+    insert_idx = busy.bsearch_index { |x| x[0] > end_time } || busy.size
+    busy.insert(insert_idx, [end_time, server])
   end
 
-  # grouped_by_processed_load = server_load.group_by { |k, v| v }
-  # max_requests = grouped_by_processed_load.keys.max
-  # grouped_by_processed_load[max_requests].map(&:first)
-
-  (0...k).select { |i| server_load[i] == max_tasks }
+  max_load = server_load.max
+  (0...k).select { |i| server_load[i] == max_load }
 end
 
 # Input: k = 3, arrival = [1,2,3,4,5], load = [5,2,3,3,3] 
